@@ -14,11 +14,16 @@ function naive() {
         parse(loadedCsv, function transformEachLine(err, parsed) {
 
             for (let index in parsed) {
-
                 let line = parsed[index];
 
                 // FIXME: Put your transformation here
-
+                
+                let full_name = line[0] + ' ' + line[1];
+                
+                let newLine = [ full_name ].concat(line.slice(2));
+                console.log(newLine);
+                
+                
                 if (index > 0) {
                     debug(`sending data index: ${index - 1}`);
 
