@@ -15,78 +15,82 @@ const input = fs.createReadStream('./sample.csv');
 
 //Create the parser
 const parser = parse();
+input.on('close', function() {
+    parser.end();
+})
+
+var counter = 0;
+
+// var rl = readline.createInterface({
+//     //input: input,
+//     terminal: false
+// });
 
 //Use the writable stream api
-//parser.on('data', function () {
-var createFullNameRecord = transform(function(record) {
-    if (record[0] == 'first_name') return false;
+//parser.on('readable', function (record) {
+var createFullNameRecord = transform(function(record, callback) {
+     //var record = parser.read();
+     //while(record = parser.read()) {
+     //debug(record);
+    if(!record) return false;
+    // while(record) {
+
+debug('total lines', parser.count)
+    if (record[0] === 'first_name') return false;
     //debug('Line from file: ', record);
-    let fullName = record[0] + ' '  + record[1];
+    let fullName = record[0] + ' '  + record[1];//record.slice(0,2).join(' ');//
 
     let newLine = [fullName].concat(record.slice(2));
-    //debug('Combined line: ', newLine);
-    return record;
-}, {parallel: 100});
+
+//    debug('counter: ', counter);
+    debug('Full name: ', newLine);
+//    }
+        callback(null, newLine);
+    //record = parser.read();
+}, {parallel: 20});
 
 var printErr = function(err) {
     debug(err.message);
 }
 
-var sendSms = transform(helper.sendSms, {parallel: 100});
-sendSms.on('error', printErr)
 
-var sendSms_ = transform(function(newLine) {
-    var lineToLog;
-    helper.sendSms(newLine, function afterSending(err, sendingStatus) {
-        if (err) {
-            //debug('to log: ', err.message);
-        
-            lineToLog = {
-                sendingStatus,
-                newLine,
-            };
-        }
+var logErr = transform(function(logData) {
+    debug('error to log: ', logData);
+    helper.logToS3(logData, function(error, loggingStatus) {
+        if(error) debug(error.message);
     });
+});
+//logErr.on('error', printErr);
+
+//var sendSms_ = transform(helper.sendSms, {parallel: 1});
+//sendSms.on('error', logErr);
+
+var checkIfSmsSent = transform(function(smsResult) {
+    debug('sms result: ', smsResult);
+});
+
+var sendSms = transform(function(newLine) {
+    var lineToLog;
+    //var sendNow = function(callback) {
+        helper.sendSms(newLine, function afterSending(err, sendingStatus) {
+            if (err) {
+                debug('to log: ', err.message);
+
+                logErr.write({
+                     sendingStatus,
+                     newLine,
+                });
+            }
+        });
+    //};
 
     if(lineToLog) debug('lineToLog: ', lineToLog);
     return lineToLog;
 
-}, {parallel: 20});
+}, {parallel: 10});
 
-var logToS3 = transform(helper.logToS3, {parallel: 100});
+var logToS3 = transform(helper.logToS3, {parallel: 1});
 logToS3.on('error', printErr);
 
-var logToS3 = transform(function(lineToLog) {
-    debug('lineToLog: ', lineToLog);
-      if (lineToLog) {
-            
-            helper.logToS3(lineToLog, function afterLogging(err, loggingStatus) {
-                if (err) {
-                    debug(err.message);
-                }
 
-                debug(loggingStatus);
-            });
-        }
-}, {parallel: 20});
-
-// Catch any error
-parser.on('error', printErr);
-
-const rl = readline.createInterface({
-    input: input,
-    output: parser
-});
-
-// rl.on('line', function parseLine(line) {
-// //    debug('line: ', line);
-//      //parser.write(line);
-// //     parser.write('\n');
-// });
-
-rl.on('close', function closeReadline() {
-    parser.end();
-});
-
-//stream.pipe(rl);
-input.pipe(parser).pipe(createFullNameRecord).pipe(sendSms).pipe(logToS3);
+input.pipe(parser).pipe(createFullNameRecord).pipe(sendSms);
