@@ -17,13 +17,10 @@ function naive() {
                 let line = parsed[index];
 
                 // FIXME: Put your transformation here
-                
-                let full_name = line[0] + ' ' + line[1];
-                
-                let newLine = [ full_name ].concat(line.slice(2));
-                console.log(newLine);
-                
-                
+                if (line[0] === 'first_name') continue;
+                let fullName = line[0] + ' ' + line[1];
+                let newLine = [fullName].concat(line.slice(2));
+                debug(newLine);
                 if (index > 0) {
                     debug(`sending data index: ${index - 1}`);
 
